@@ -1,0 +1,80 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: influxdb-pv-clm
+  labels:
+    app: influxdb-app
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 8Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: influxdb-deploy
+  labels:
+    app: influxdb-app
+spec:
+  selector:
+    matchLabels:
+      app: influxdb-app
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: influxdb-app
+    spec:
+      restartPolicy: Always
+      containers:
+      - image: influxdb-img
+        name: influxdb
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8086
+          name: influxdb
+        livenessProbe:
+            exec:
+              command:
+                - sh
+                - livenessprobe.sh
+            initialDelaySeconds: 15
+            periodSeconds: 3
+        volumeMounts:
+        - name: influxdb-vol
+          mountPath: /var/lib/influxdb
+        env:
+          - name: INFLUXDB_CONFIG_PATH
+            value: "/etc/influxdb.conf"
+          - name: INFLUXDB_ADMIN_USER
+            valueFrom:
+              secretKeyRef:
+                name: auth-secrets
+                key: user
+          - name: INFLUXDB_ADMIN_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: auth-secrets
+                key: password
+      volumes:
+      - name: influxdb-vol
+        persistentVolumeClaim:
+          claimName: influxdb-pv-clm
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: influxdb-svc
+  labels:
+    app: influxdb-app
+spec:
+  selector:
+    app: influxdb-app
+  ports:
+    - port: 8086
+      protocol: TCP
+      name: influxdb
+  type: ClusterIP

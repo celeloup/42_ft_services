@@ -1,0 +1,71 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ftps-svc
+  annotations:
+    metallb.universe.tf/allow-shared-ip: shared
+spec:
+  type: LoadBalancer
+  selector:
+    app: ftps-app
+  ports:
+  - port: 20
+    name: ftps-port
+  - port: 21
+    name: ftps-svc
+  - port: 20010
+    name: ftps-pasv0
+  - port: 20011
+    name: ftps-pasv1
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ftps-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ftps-deploy
+spec:
+  selector:
+    matchLabels:
+      app: ftps-app
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: ftps-app
+    spec:
+      containers:
+      - name: ftps
+        image: ftps-img
+        volumeMounts:
+            - mountPath: "/home/"
+              subPath: "ftps"
+              name: ftps-data
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 20
+          hostPort: 20
+        - containerPort: 21
+          hostPort: 21
+        - containerPort: 20010
+          hostPort: 20010
+        - containerPort: 20011
+          hostPort: 20011
+        livenessProbe:
+          exec:
+            command:
+              - pgrep
+              - vsftpd
+      volumes:
+      - name: ftps-data
+        persistentVolumeClaim:
+          claimName: ftps-pvc

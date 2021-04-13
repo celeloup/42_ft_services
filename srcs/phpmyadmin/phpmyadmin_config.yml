@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: phpmyadmin-deploy
+  labels:
+    app: phpmyadmin-app
+spec:
+  selector:
+    matchLabels:
+      app: phpmyadmin-app
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: phpmyadmin-app
+    spec:
+      restartPolicy: Always
+      containers:
+      - image: phpmyadmin-img
+        name: phpmyadmin
+        ports:
+        - containerPort: 5000
+          name: http
+        env:
+          - name: DB_USER
+            valueFrom:
+                secretKeyRef:
+                  name: auth-secrets
+                  key: user
+          - name: DB_PASSWORD
+            valueFrom:
+                secretKeyRef:
+                  name: auth-secrets
+                  key: password
+          - name: DB_HOST
+            value: "mariadb-svc"
+          - name: DB_PORT
+            value: "3306"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 5000
+          initialDelaySeconds: 30
+          periodSeconds: 5
+        imagePullPolicy: Never
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    metallb.universe.tf/allow-shared-ip: shared
+  name: phpmyadmin-svc
+  labels:
+    app: phpmyadmin-app
+spec:
+  selector:
+    app: phpmyadmin-app
+  ports:
+    - port: 5000
+      targetPort: 5000
+      name: http
+  type: LoadBalancer

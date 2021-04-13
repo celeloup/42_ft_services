@@ -1,0 +1,64 @@
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wordpress-deploy
+  labels:
+    app: wordpress-app
+spec:
+  selector:
+    matchLabels:
+      app: wordpress-app
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: wordpress-app
+    spec:
+      restartPolicy: Always
+      containers:
+      - image: wordpress-img
+        name: wordpress
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 5050
+          name: http
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 5050
+          initialDelaySeconds: 30
+          periodSeconds: 5
+        env:
+        - name: DB_NAME
+          value: "wordpress"
+        - name: DB_HOST
+          value: "mariadb-svc"
+        - name: DB_USER
+          valueFrom:
+                secretKeyRef:
+                  name: auth-secrets
+                  key: user
+        - name: DB_PASSWORD
+          valueFrom:
+                secretKeyRef:
+                  name: auth-secrets
+                  key: password
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    metallb.universe.tf/allow-shared-ip: shared
+  name: wordpress-svc
+  labels:
+    app: wordpress-app
+spec:
+  selector:
+    app: wordpress-app
+  ports:
+    - port: 5050
+      targetPort: 5050
+      name: http
+  type: LoadBalancer

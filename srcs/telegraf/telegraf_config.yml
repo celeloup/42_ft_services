@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telegraf-deploy
+  labels:
+    app: telegraf-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: telegraf-app
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: telegraf-app
+    spec:
+      restartPolicy: Always
+      containers:
+      - image: telegraf-img
+        name: telegraf
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8125
+          name: telegraf
+        livenessProbe:
+          exec:
+            command:
+            - pgrep
+            - telegraf
+        volumeMounts:
+        - mountPath: /var/run/docker.sock
+          name: dockersock
+        env:
+          - name: INFLUXDB_URL
+            value: "http://influxdb-svc:8086"
+      volumes:
+      - name: dockersock
+        hostPath:
+          path: /var/run/docker.sock
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: telegraf-svc
+  labels:
+    app: telegraf-app
+spec:
+  selector:
+    app: telegraf-app
+  ports:
+    - port: 8125
+      protocol: TCP
+      name: telegraf
+  type: ClusterIP
